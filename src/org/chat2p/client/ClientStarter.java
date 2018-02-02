@@ -1,13 +1,13 @@
-package org.chat2p;
+package org.chat2p.client;
 
-import org.chat2p.ui.StartupFrame;
+import org.chat2p.client.ui.StartupFrame;
 
 import java.awt.*;
 
 /**
- * The Main Class
+ * The ClientStarter Class
  */
-public class Main {
+public class ClientStarter {
 
     /**
      * The main method of the program
