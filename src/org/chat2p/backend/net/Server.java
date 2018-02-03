@@ -1,15 +1,21 @@
 package org.chat2p.backend.net;
 
+import org.chat2p.api.MessageType;
+import org.chat2p.api.NetMessage;
+import org.chat2p.api.P2PConnectionRequest;
+
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.ArrayList;
 import java.util.HashMap;
 
 public class Server {
 
-    private ServerSocket socket;
+    public ServerSocket socket;
 
-    private HashMap<String, ConnectedClient> clients = new HashMap<>();
+    public HashMap<String, ConnectedClient> clients = new HashMap<>();
+    public ArrayList<ConnectedClient> pendingConfirmation = new ArrayList<>();
 
     public boolean shutdown = false;
 
@@ -28,7 +34,7 @@ public class Server {
                 System.out.println("Client found. Client address is " + clientSocket.getInetAddress().toString());
                 ConnectedClient newClient = new ConnectedClient(this, clientSocket);
                 newClient.start();
-                clients.put("name", newClient);
+                pendingConfirmation.add(newClient);
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -49,6 +55,18 @@ public class Server {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    public void requestP2P(ConnectedClient requester, ConnectedClient requested){
+        requested.sendMessage(new NetMessage("Server:" + this.socket.getInetAddress().toString(), requested.username, new P2PConnectionRequest(requester.username, requested.username), MessageType.RequestP2P));
+    }
+
+    public void acceptP2P(P2PConnectionRequest req){
+
+    }
+
+    public void  denyP2P(P2PConnectionRequest req){
+
     }
 
 }
