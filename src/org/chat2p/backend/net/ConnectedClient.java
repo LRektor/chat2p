@@ -9,18 +9,19 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 
+@SuppressWarnings("deprecation")
 public class ConnectedClient extends Thread {
 
-    private Socket connectionSocket;
+    Socket connectionSocket;
 
     private Server serverInstance;
 
     private ObjectInputStream inStream;
     private ObjectOutputStream outStream;
 
-    public String username;
+    String username;
 
-    public ConnectedClient(Server server, Socket socket){
+    ConnectedClient(Server server, Socket socket){
         this.connectionSocket = socket;
         this.serverInstance = server;
         try {
@@ -43,7 +44,7 @@ public class ConnectedClient extends Thread {
         }
     }
 
-    public void sendMessage(NetMessage message){
+    void sendMessage(NetMessage message){
         try {
             this.outStream.writeObject(message);
         } catch (IOException e) {
@@ -51,7 +52,7 @@ public class ConnectedClient extends Thread {
         }
     }
 
-    public void close() throws IOException {
+    void close() throws IOException {
         inStream.close();
         outStream.close();
         connectionSocket.close();
@@ -59,7 +60,8 @@ public class ConnectedClient extends Thread {
 
     @Override
     public void run() {
-        while (true){
+        boolean keepConnection = true;
+        while (keepConnection){
             try {
                 NetMessage message = (NetMessage) inStream.readObject();
                 switch (message.type){
@@ -92,15 +94,24 @@ public class ConnectedClient extends Thread {
                         }
                         break;
                     case Disconnect:
+                        keepConnection = false;
                         break;
                     case Default:
+                        System.out.println("Recieved NetMessage from client " + username + " at " + connectionSocket.getInetAddress().toString() + ": " + message.message);
                         break;
                     default:
+                        System.out.println("Recieved Message from client " + username + " at " + connectionSocket.getInetAddress().toString() + ": " + message.message);
                         break;
                 }
             } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
             }
+        }
+        try {
+            close();
+            stop();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 }
