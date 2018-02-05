@@ -1,7 +1,10 @@
 package org.chat2p.client.ui;
 
+import org.chat2p.client.net.ConnectedServerClient;
+
 import javax.swing.*;
 import java.awt.*;
+import java.util.regex.Pattern;
 
 /**
  * This class contains the startup frame of the application
@@ -57,6 +60,23 @@ public class StartupFrame extends JFrame {
         JTextField nickField = new JTextField();
         nickField.setBounds(270, 70, 200, 25);
         c.add(nickField);
+        //Connect Button
+        JButton connect = new JButton("Connect");
+        connect.addActionListener(e -> {
+            if(((String) nodeBox.getSelectedItem()).equalsIgnoreCase("custom") && inputCustom.getText() != "" && nickField.getText() != ""){
+                String username = nickField.getText();
+                String server = inputCustom.getText();
+                if(Pattern.matches("\\d{1,3}.\\d{1,3}.\\d{1,3}.\\d{1,3}:\\d{1,5}", server)){
+                    String[] parts = server.split(":");
+                    int port = Integer.parseInt(parts[1]);
+                    new ConnectedServerClient(parts[0], port, username);
+                }else if(Pattern.matches("\\d{1,3}.\\d{1,3}.\\d{1,3}.\\d{1,3}", server)){
+                    new ConnectedServerClient(server, 25678, username);
+                }
+            }
+        });
+        connect.setBounds(10, 90, 200, 25);
+        c.add(connect);
     }
 
 }
