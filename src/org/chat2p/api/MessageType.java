@@ -11,6 +11,8 @@ public enum MessageType {
     Disconnect,
     IsUserOnline,
     Error,
-    P2P
+    P2P,
+    ListUsers,
+    PING
 
 }

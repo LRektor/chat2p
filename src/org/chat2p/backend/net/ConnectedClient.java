@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
+import java.util.Date;
 
 @SuppressWarnings("deprecation")
 public class ConnectedClient extends Thread {
@@ -22,25 +23,38 @@ public class ConnectedClient extends Thread {
     String username;
 
     ConnectedClient(Server server, Socket socket){
+        System.out.println("Starting new client connection at " + socket.getInetAddress().toString());
+        server.pendingConfirmation.add(this);
         this.connectionSocket = socket;
         this.serverInstance = server;
         try {
-            this.inStream = new ObjectInputStream(socket.getInputStream());
             this.outStream = new ObjectOutputStream(socket.getOutputStream());
+            this.inStream = new ObjectInputStream(socket.getInputStream());
+            System.out.println("Waiting for connection request.");
             NetMessage message = (NetMessage) this.inStream.readObject();
+            System.out.println("Received connection request");
             if(message.type == MessageType.RequestConnection){
+                System.out.println("User connected with username " + message.sender);
                 this.username = message.sender;
                 serverInstance.clients.put(this.username, this);
                 serverInstance.pendingConfirmation.remove(this);
+                System.out.println("Starting connection listening");
+                this.start();
                 this.outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, "accepted", MessageType.AcceptedConnection));
             }else{
+                serverInstance.pendingConfirmation.remove(this);
                 this.inStream.close();
                 this.outStream.close();
                 this.connectionSocket.close();
-                this.stop();
             }
         } catch (IOException | ClassNotFoundException e) {
+            serverInstance.pendingConfirmation.remove(this);
             e.printStackTrace();
+            try {
+                this.connectionSocket.close();
+            } catch (IOException e1) {
+                e1.printStackTrace();
+            }
         }
     }
 
@@ -53,6 +67,9 @@ public class ConnectedClient extends Thread {
     }
 
     void close() throws IOException {
+        System.out.println("Closing connection");
+        serverInstance.clients.remove(this.username, this);
+        serverInstance.pendingConfirmation.remove(this);
         inStream.close();
         outStream.close();
         connectionSocket.close();
@@ -61,50 +78,74 @@ public class ConnectedClient extends Thread {
     @Override
     public void run() {
         boolean keepConnection = true;
+        long lastPing = System.currentTimeMillis();
+        boolean pingSent = false;
         while (keepConnection){
             try {
-                NetMessage message = (NetMessage) inStream.readObject();
-                switch (message.type){
-                    case RequestP2P:
-                        if(message.message instanceof String) {
-                            serverInstance.requestP2P(this, serverInstance.clients.get(message.message));
-                        }else{
-                            outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, "Format is false, requires String", MessageType.DenyP2P));
-                        }
-                        break;
-                    case IsUserOnline:
-                        if(message.message instanceof String && serverInstance.clients.containsKey(message.message)){
-                            outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, true, MessageType.IsUserOnline));
-                        }else{
-                            outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, false, MessageType.IsUserOnline));
-                        }
-                        break;
-                    case AcceptP2P:
-                        if(message.message instanceof P2PConnectionRequest){
-                            serverInstance.acceptP2P((P2PConnectionRequest) message.message);
-                        }else{
-                            outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, "Failed to parse Response", MessageType.Error));
-                        }
-                        break;
-                    case DenyP2P:
-                        if(message.message instanceof P2PConnectionRequest){
-                            serverInstance.denyP2P((P2PConnectionRequest) message.message);
-                        }else{
-                            outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, "Failed to parse Response", MessageType.Error));
-                        }
-                        break;
-                    case Disconnect:
+                if(inStream.available() > 0) {
+                    System.out.println("Received new Message");
+                    NetMessage message = (NetMessage) inStream.readObject();
+                    switch (message.type) {
+                        case RequestP2P:
+                            if (message.message instanceof String) {
+                                serverInstance.requestP2P(this, serverInstance.clients.get(message.message));
+                            } else {
+                                outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, "Format is false, requires String", MessageType.DenyP2P));
+                            }
+                            break;
+                        case IsUserOnline:
+                            if (message.message instanceof String && serverInstance.clients.containsKey(message.message)) {
+                                outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, true, MessageType.IsUserOnline));
+                            } else {
+                                outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, false, MessageType.IsUserOnline));
+                            }
+                            break;
+                        case ListUsers:
+                            outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, serverInstance.clients, MessageType.ListUsers));
+                            break;
+                        case AcceptP2P:
+                            if (message.message instanceof P2PConnectionRequest) {
+                                serverInstance.acceptP2P((P2PConnectionRequest) message.message);
+                            } else {
+                                outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, "Failed to parse Response", MessageType.Error));
+                            }
+                            break;
+                        case DenyP2P:
+                            if (message.message instanceof P2PConnectionRequest) {
+                                serverInstance.denyP2P((P2PConnectionRequest) message.message);
+                            } else {
+                                outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, "Failed to parse Response", MessageType.Error));
+                            }
+                            break;
+                        case Disconnect:
+                            System.out.println("Disconnect from client " + username + " at " + connectionSocket.getInetAddress().toString());
+                            keepConnection = false;
+                            break;
+                        case Default:
+                            System.out.println("Received NetMessage from client " + username + " at " + connectionSocket.getInetAddress().toString() + ": " + message.message);
+                            break;
+                        case PING:
+                            lastPing = System.currentTimeMillis();
+                            pingSent = false;
+                            break;
+                        default:
+                            System.out.println("Received Message from client " + username + " at " + connectionSocket.getInetAddress().toString() + ": " + message.message);
+                            break;
+                    }
+                }
+                if((System.currentTimeMillis() - lastPing) >= 5000){
+                    if((System.currentTimeMillis() - lastPing) >= 15000){
                         keepConnection = false;
-                        break;
-                    case Default:
-                        System.out.println("Recieved NetMessage from client " + username + " at " + connectionSocket.getInetAddress().toString() + ": " + message.message);
-                        break;
-                    default:
-                        System.out.println("Recieved Message from client " + username + " at " + connectionSocket.getInetAddress().toString() + ": " + message.message);
-                        break;
+                        System.out.println("Client " + this.username + " at " + this.connectionSocket.getInetAddress().toString() + " timed out.");
+                    }
+                    if(!pingSent) {
+                        outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, "ping", MessageType.PING));
+                        pingSent = true;
+                    }
                 }
             } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
+                keepConnection = false;
             }
         }
         try {

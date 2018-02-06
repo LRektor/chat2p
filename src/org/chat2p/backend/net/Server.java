@@ -35,9 +35,7 @@ public class Server {
                 Socket clientSocket = socket.accept();
                 if (shutdown) break;
                 System.out.println("Client found. Client address is " + clientSocket.getInetAddress().toString());
-                ConnectedClient newClient = new ConnectedClient(this, clientSocket);
-                newClient.start();
-                pendingConfirmation.add(newClient);
+                new ConnectedClient(this, clientSocket);
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -70,12 +68,14 @@ public class Server {
                         case "users":
                             System.out.println("Listing all connections");
                             System.out.println("Connected Clients:");
+                            int clientIndex = 0;
                             for(ConnectedClient client : clients.values()){
-                                System.out.println(client.username + " at " + client.connectionSocket.getInetAddress().toString());
+                                System.out.println("-" + clientIndex + ": " + client.username + " at " + client.connectionSocket.getInetAddress().toString());
                             }
                             System.out.println("Clients pending Connection:");
+                            clientIndex = 0;
                             for(ConnectedClient client : pendingConfirmation){
-                                System.out.println("Client at " + client.connectionSocket.getInetAddress().toString());
+                                System.out.println("-" + clientIndex + ": Client at " + client.connectionSocket.getInetAddress().toString());
                             }
                             System.out.println("Finished listing connections");
                             break;

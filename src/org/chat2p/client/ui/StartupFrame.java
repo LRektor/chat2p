@@ -39,10 +39,12 @@ public class StartupFrame extends JFrame {
         //TextField to enter a custom server ip/url
         JTextField inputCustom = new JTextField();
         inputCustom.setBounds(480, 40, 125, 25);
-        inputCustom.setEnabled(false);
+        inputCustom.setText("127.0.0.1:25678");
+        inputCustom.setEnabled(true);
         c.add(inputCustom);
         //ComboBox to choose a server either from a list or define a custom one
         JComboBox<String> nodeBox = new JComboBox<>(new String[]{"Default", "Internal", "Custom"});
+        nodeBox.setSelectedItem("Custom");
         nodeBox.addActionListener(e -> {
             if(((String) nodeBox.getSelectedItem()).equalsIgnoreCase("custom")){
                 inputCustom.setEnabled(true);
@@ -59,6 +61,7 @@ public class StartupFrame extends JFrame {
         //Nickname TextField
         JTextField nickField = new JTextField();
         nickField.setBounds(270, 70, 200, 25);
+        nickField.setText(System.getProperty("user.name"));
         c.add(nickField);
         //Connect Button
         JButton connect = new JButton("Connect");
@@ -69,9 +72,11 @@ public class StartupFrame extends JFrame {
                 if(Pattern.matches("\\d{1,3}.\\d{1,3}.\\d{1,3}.\\d{1,3}:\\d{1,5}", server)){
                     String[] parts = server.split(":");
                     int port = Integer.parseInt(parts[1]);
-                    new ConnectedServerClient(parts[0], port, username);
+                    System.out.println("Connecting to server " + parts[0] + " over port " + port);
+                    new ConnectedServerClient(parts[0], port, username, this);
                 }else if(Pattern.matches("\\d{1,3}.\\d{1,3}.\\d{1,3}.\\d{1,3}", server)){
-                    new ConnectedServerClient(server, 25678, username);
+                    System.out.println("Connecting to server " + server + " over default port 25678.");
+                    new ConnectedServerClient(server, 25678, username, this);
                 }
             }
         });
