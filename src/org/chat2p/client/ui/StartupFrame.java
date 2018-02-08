@@ -46,7 +46,7 @@ public class StartupFrame extends JFrame {
         JComboBox<String> nodeBox = new JComboBox<>(new String[]{"Default", "Internal", "Custom"});
         nodeBox.setSelectedItem("Custom");
         nodeBox.addActionListener(e -> {
-            if(((String) nodeBox.getSelectedItem()).equalsIgnoreCase("custom")){
+            if((nodeBox.getSelectedItem()) != null && ((String) nodeBox.getSelectedItem()).equalsIgnoreCase("custom")){
                 inputCustom.setEnabled(true);
             }else{
                 inputCustom.setEnabled(false);
@@ -66,7 +66,7 @@ public class StartupFrame extends JFrame {
         //Connect Button
         JButton connect = new JButton("Connect");
         connect.addActionListener(e -> {
-            if(((String) nodeBox.getSelectedItem()).equalsIgnoreCase("custom") && inputCustom.getText() != "" && nickField.getText() != ""){
+            if((nodeBox.getSelectedItem() != null && ((String) nodeBox.getSelectedItem()).equalsIgnoreCase("custom")) && !inputCustom.getText().equalsIgnoreCase("") && !nickField.getText().equalsIgnoreCase("")){
                 String username = nickField.getText();
                 String server = inputCustom.getText();
                 if(Pattern.matches("\\d{1,3}.\\d{1,3}.\\d{1,3}.\\d{1,3}:\\d{1,5}", server)){
@@ -78,6 +78,8 @@ public class StartupFrame extends JFrame {
                     System.out.println("Connecting to server " + server + " over default port 25678.");
                     new ConnectedServerClient(server, 25678, username, this);
                 }
+            }else{
+                System.out.println("Failed to find necessary information.");
             }
         });
         connect.setBounds(10, 90, 200, 25);

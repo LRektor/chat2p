@@ -23,7 +23,7 @@ public class BackendStarter {
         }else{
             port = 25678;
         }
-        Server backendServer = new Server(port);
+        new Server(port);
     }
 
 }

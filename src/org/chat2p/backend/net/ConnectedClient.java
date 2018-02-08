@@ -9,7 +9,8 @@ import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
-import java.util.Date;
+import java.util.ArrayList;
+import java.util.Collections;
 
 @SuppressWarnings("deprecation")
 public class ConnectedClient extends Thread {
@@ -22,6 +23,14 @@ public class ConnectedClient extends Thread {
     private ObjectOutputStream outStream;
 
     String username;
+
+    //Ping
+    private long lastPing = System.currentTimeMillis();
+    private boolean pingSent = false;
+    private Pinger pinger;
+
+    //KeepConnection
+    private boolean keepConnection = true;
 
     ConnectedClient(Server server, Socket socket){
         System.out.println("Starting new client connection at " + socket.getInetAddress().toString());
@@ -41,6 +50,8 @@ public class ConnectedClient extends Thread {
                 serverInstance.pendingConfirmation.remove(this);
                 System.out.println("Starting connection listening");
                 this.start();
+                pinger = new Pinger();
+                pinger.start();
                 this.outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, "accepted", MessageType.AcceptedConnection));
             }else{
                 serverInstance.pendingConfirmation.remove(this);
@@ -68,83 +79,72 @@ public class ConnectedClient extends Thread {
     }
 
     void close() throws IOException {
+        this.keepConnection = false;
         System.out.println("Closing connection");
         serverInstance.clients.remove(this.username, this);
         serverInstance.pendingConfirmation.remove(this);
         inStream.close();
         outStream.close();
         connectionSocket.close();
+        this.stop();
+        pinger.stop();
     }
 
     @Override
     public void run() {
-        boolean keepConnection = true;
-        long lastPing = System.currentTimeMillis();
-        boolean pingSent = false;
         while (keepConnection){
             try {
-                if(inStream.available() > 0) {
-                    System.out.println("Received new Message");
-                    NetMessage message = (NetMessage) inStream.readObject();
-                    switch (message.type) {
-                        case RequestP2P:
-                            if (message.message instanceof String) {
-                                serverInstance.requestP2P(this, serverInstance.clients.get(message.message));
-                            } else {
-                                outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, "Format is false, requires String", MessageType.DenyP2P));
-                            }
-                            break;
-                        case IsUserOnline:
-                            if (message.message instanceof String && serverInstance.clients.containsKey(message.message)) {
-                                outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, true, MessageType.IsUserOnline));
-                            } else {
-                                outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, false, MessageType.IsUserOnline));
-                            }
-                            break;
-                        case ListUsers:
-                            outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, serverInstance.clients, MessageType.ListUsers));
-                            break;
-                        case AcceptP2P:
-                            if (message.message instanceof P2PConnectionRequest) {
-                                serverInstance.acceptP2P((P2PConnectionRequest) message.message);
-                            } else {
-                                outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, "Failed to parse Response", MessageType.Error));
-                            }
-                            break;
-                        case DenyP2P:
-                            if (message.message instanceof P2PConnectionRequest) {
-                                serverInstance.denyP2P((P2PConnectionRequest) message.message);
-                            } else {
-                                outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, "Failed to parse Response", MessageType.Error));
-                            }
-                            break;
-                        case Disconnect:
-                            System.out.println("Disconnect from client " + username + " at " + connectionSocket.getInetAddress().toString());
-                            keepConnection = false;
-                            break;
-                        case Default:
-                            Logger.log("Default Message", "Received Message from client " + username + " at " + connectionSocket.getInetAddress().toString() + ": " + message.message, 3);
-                            break;
-                        case PING:
-                            lastPing = System.currentTimeMillis();
-                            pingSent = false;
-                            Logger.log("Ping", "Client " + this.username + " at " + this.connectionSocket.getInetAddress().toString() + " answered the ping request.", 3);
-                            break;
-                        default:
-                            Logger.log("Default Message", "Received Message from client " + username + " at " + connectionSocket.getInetAddress().toString() + ": " + message.message, 3);
-                            break;
-                    }
-                }
-                if((System.currentTimeMillis() - lastPing) >= 5000){
-                    if((System.currentTimeMillis() - lastPing) >= 15000){
+                NetMessage message = (NetMessage) inStream.readObject();
+                switch (message.type) {
+                    case RequestP2P:
+                        if (message.message instanceof String) {
+                            serverInstance.requestP2P(this, serverInstance.clients.get(message.message));
+                        } else {
+                            outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, "Format is false, requires String", MessageType.DenyP2P));
+                        }
+                        break;
+                    case IsUserOnline:
+                        if (message.message instanceof String && serverInstance.clients.containsKey(message.message)) {
+                            outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, true, MessageType.IsUserOnline));
+                        } else {
+                            outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, false, MessageType.IsUserOnline));
+                        }
+                        break;
+                    case ListUsers:
+                        ArrayList<String> users = new ArrayList<>();
+                        users.addAll(serverInstance.clients.keySet());
+                        Collections.sort(users);
+                        outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, users, MessageType.ListUsers));
+                        break;
+                    case AcceptP2P:
+                        if (message.message instanceof P2PConnectionRequest) {
+                            serverInstance.acceptP2P((P2PConnectionRequest) message.message);
+                        } else {
+                            outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, "Failed to parse Response", MessageType.Error));
+                        }
+                        break;
+                    case DenyP2P:
+                        if (message.message instanceof P2PConnectionRequest) {
+                            serverInstance.denyP2P((P2PConnectionRequest) message.message);
+                        } else {
+                            outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, "Failed to parse Response", MessageType.Error));
+                        }
+                        break;
+                    case Disconnect:
+                        System.out.println("Disconnect from client " + username + " at " + connectionSocket.getInetAddress().toString());
                         keepConnection = false;
-                        Logger.log("Timeout", "Client " + this.username + " at " + this.connectionSocket.getInetAddress().toString() + " timed out.", 1);
-                    }
-                    if(!pingSent) {
-                        Logger.log("Ping", "Sending ping to user " + this.username + " at " + this.connectionSocket.getInetAddress().toString(), 2);
-                        outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, "ping", MessageType.PING));
-                        pingSent = true;
-                    }
+                        break;
+                    case Default:
+                        Logger.log("Default Message", "Received Message from client " + username + " at " + connectionSocket.getInetAddress().toString() + ": " + message.message, 3);
+                        break;
+                    case PING:
+                        lastPing = System.currentTimeMillis();
+                        pingSent = false;
+                        Logger.log("Ping", "Client " + this.username + " at " + this.connectionSocket.getInetAddress().toString() + " answered the ping request.", 3);
+                        break;
+                    default:
+                        Logger.log("Default Message", "Received Message from client " + username + " at " + connectionSocket.getInetAddress().toString() + ": " + message.message, 3);
+                        break;
                 }
             } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
@@ -153,9 +153,31 @@ public class ConnectedClient extends Thread {
         }
         try {
             close();
-            stop();
         } catch (IOException e) {
             e.printStackTrace();
+        }
+    }
+
+    private class Pinger extends Thread {
+        @Override
+        public void run() {
+            while(keepConnection) {
+                if ((System.currentTimeMillis() - lastPing) >= 5000) {
+                    if ((System.currentTimeMillis() - lastPing) >= 15000) {
+                        keepConnection = false;
+                        Logger.log("Timeout", "Client " + username + " at " + connectionSocket.getInetAddress().toString() + " timed out.", 1);
+                    }
+                    if (!pingSent) {
+                        Logger.log("Ping", "Sending ping to user " + username + " at " + connectionSocket.getInetAddress().toString(), 2);
+                        try {
+                            outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), username, "ping", MessageType.PING));
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                        pingSent = true;
+                    }
+                }
+            }
         }
     }
 }

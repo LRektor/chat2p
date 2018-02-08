@@ -51,7 +51,7 @@ public class Server {
         clients.get(req.requested).sendMessage(new NetMessage("Server:" + this.socket.getInetAddress().toString(), req.requested, clients.get(req.requester).connectionSocket, MessageType.P2P));
     }
 
-    void  denyP2P(P2PConnectionRequest req){
+    void denyP2P(P2PConnectionRequest req){
         clients.get(req.requester).sendMessage(new NetMessage("Server:" + this.socket.getInetAddress().toString(), req.requester, "denied", MessageType.DenyP2P));
     }
 

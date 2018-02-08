@@ -11,8 +11,6 @@ public class Logger {
      */
     public static int globalLogLevel = 0;
 
-    public static boolean fileLogging = false;
-
     public static void log(String message, int logLevel){
         log("Info", message, logLevel);
     }
@@ -20,16 +18,6 @@ public class Logger {
     public static void log(String tag, String message, int logLevel){
         if(logLevel <= globalLogLevel){
             System.out.println("[" + tag + "]: " + message);
-        }
-    }
-
-    public static void logError(String message, int logLevel){
-        logError("[Info]: ", message, logLevel);
-    }
-
-    public static void logError(String tag, String message, int logLevel){
-        if(logLevel <= globalLogLevel){
-            System.err.println("[" + tag + "]: " + message);
         }
     }
 

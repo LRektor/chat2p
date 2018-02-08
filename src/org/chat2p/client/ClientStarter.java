@@ -14,7 +14,7 @@ public class ClientStarter {
      * @param args Java Arguments
      */
     public static void main(String[] args){
-        StartupFrame startup = new StartupFrame("Chat2p - Startup", Toolkit.getDefaultToolkit().getScreenSize().width, Toolkit.getDefaultToolkit().getScreenSize().height);
+        new StartupFrame("Chat2p - Startup", Toolkit.getDefaultToolkit().getScreenSize().width, Toolkit.getDefaultToolkit().getScreenSize().height);
     }
 
 }

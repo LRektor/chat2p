@@ -2,12 +2,15 @@ package org.chat2p.client.net;
 
 import org.chat2p.api.MessageType;
 import org.chat2p.api.NetMessage;
+import org.chat2p.api.P2PConnectionRequest;
 import org.chat2p.client.ui.ConnectP2PUI;
 
 import javax.swing.*;
 import java.io.*;
 import java.net.Socket;
+import java.util.ArrayList;
 
+@SuppressWarnings({"deprecation", "unchecked"})
 public class ConnectedServerClient extends Thread {
 
     private Socket server;
@@ -17,7 +20,12 @@ public class ConnectedServerClient extends Thread {
     private ObjectOutputStream outputStream;
 
     private boolean connected = false;
-    private boolean keepConnection = true;
+    public boolean keepConnection = true;
+
+    public ArrayList<String> users;
+    public long lastUpdateUserList = -1;
+
+    private ConnectP2PUI ui;
 
     public ConnectedServerClient(String ip, int port, String username, JFrame startupUI){
         try {
@@ -26,9 +34,9 @@ public class ConnectedServerClient extends Thread {
             connect();
             if(connected){
                 startupUI.setVisible(false);
-                new ConnectP2PUI(this);
+                ui = new ConnectP2PUI(this);
                 this.start();
-                //this.outputStream.writeObject(new NetMessage(this.username, "Server", "userlist", MessageType.ListUsers));
+                this.outputStream.writeObject(new NetMessage(this.username, "Server", "userlist", MessageType.ListUsers));
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -85,36 +93,39 @@ public class ConnectedServerClient extends Thread {
     public void run() {
         while (keepConnection) {
             try {
-                System.out.print(inputStream.available() > 0 ? "yes\n" : "");
-                if (inputStream.available() > 0) {
-                    System.out.println("Received new Message");
-                    NetMessage message = (NetMessage) inputStream.readObject();
-                    switch (message.type) {
-                        case RequestP2P:
-                            //HandleRequest
-                            break;
-                        case IsUserOnline:
-                            //HandleResponse
-                            break;
-                        case ListUsers:
-                            System.out.println("User list received");
-                            break;
-                        case AcceptP2P:
-                            //Start P2P Connection
-                            break;
-                        case DenyP2P:
-                            //Show Info to user
-                            break;
-                        case Default:
-                            System.out.println("Received NetMessage from server: " + message.message);
-                            break;
-                        case PING:
-                            outputStream.writeObject(new NetMessage(username, "Server", "pingresponse", MessageType.PING));
-                            break;
-                        default:
-                            System.out.println("Received Message from server: " + message.message);
-                            break;
-                    }
+                NetMessage message = (NetMessage) inputStream.readObject();
+                switch (message.type) {
+                    case RequestP2P:
+                        if(message.message instanceof P2PConnectionRequest){
+                            ui.p2pRequest((P2PConnectionRequest) message.message);
+                        }else{
+                            this.outputStream.writeObject(new NetMessage(this.username, "Server", "Format is false, requires String", MessageType.DenyP2P));
+                }
+                        break;
+                    case IsUserOnline:
+                        //HandleResponse
+                        break;
+                    case ListUsers:
+                        if(message.message instanceof ArrayList){
+                            users = (ArrayList<String>) message.message;
+                            lastUpdateUserList = System.currentTimeMillis();
+                        }
+                        break;
+                    case AcceptP2P:
+                        //Start P2P Connection
+                        break;
+                    case DenyP2P:
+                        //Show Info to user
+                        break;
+                    case Default:
+                        System.out.println("Received NetMessage from server: " + message.message);
+                        break;
+                    case PING:
+                        outputStream.writeObject(new NetMessage(username, "Server", "pingresponse", MessageType.PING));
+                        break;
+                    default:
+                        System.out.println("Received Message from server: " + message.message);
+                        break;
                 }
             } catch (IOException | ClassNotFoundException e) {
                 e.printStackTrace();
