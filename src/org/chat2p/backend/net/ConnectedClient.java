@@ -3,6 +3,7 @@ package org.chat2p.backend.net;
 import org.chat2p.api.MessageType;
 import org.chat2p.api.NetMessage;
 import org.chat2p.api.P2PConnectionRequest;
+import org.chat2p.api.logger.Logger;
 
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -122,23 +123,25 @@ public class ConnectedClient extends Thread {
                             keepConnection = false;
                             break;
                         case Default:
-                            System.out.println("Received NetMessage from client " + username + " at " + connectionSocket.getInetAddress().toString() + ": " + message.message);
+                            Logger.log("Default Message", "Received Message from client " + username + " at " + connectionSocket.getInetAddress().toString() + ": " + message.message, 3);
                             break;
                         case PING:
                             lastPing = System.currentTimeMillis();
                             pingSent = false;
+                            Logger.log("Ping", "Client " + this.username + " at " + this.connectionSocket.getInetAddress().toString() + " answered the ping request.", 3);
                             break;
                         default:
-                            System.out.println("Received Message from client " + username + " at " + connectionSocket.getInetAddress().toString() + ": " + message.message);
+                            Logger.log("Default Message", "Received Message from client " + username + " at " + connectionSocket.getInetAddress().toString() + ": " + message.message, 3);
                             break;
                     }
                 }
                 if((System.currentTimeMillis() - lastPing) >= 5000){
                     if((System.currentTimeMillis() - lastPing) >= 15000){
                         keepConnection = false;
-                        System.out.println("Client " + this.username + " at " + this.connectionSocket.getInetAddress().toString() + " timed out.");
+                        Logger.log("Timeout", "Client " + this.username + " at " + this.connectionSocket.getInetAddress().toString() + " timed out.", 1);
                     }
                     if(!pingSent) {
+                        Logger.log("Ping", "Sending ping to user " + this.username + " at " + this.connectionSocket.getInetAddress().toString(), 2);
                         outStream.writeObject(new NetMessage("Server:" + serverInstance.socket.getInetAddress().toString(), this.username, "ping", MessageType.PING));
                         pingSent = true;
                     }

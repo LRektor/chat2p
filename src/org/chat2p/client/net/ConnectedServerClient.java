@@ -2,23 +2,22 @@ package org.chat2p.client.net;
 
 import org.chat2p.api.MessageType;
 import org.chat2p.api.NetMessage;
-import org.chat2p.api.P2PConnectionRequest;
 import org.chat2p.client.ui.ConnectP2PUI;
 
 import javax.swing.*;
 import java.io.*;
 import java.net.Socket;
 
-public class ConnectedServerClient {
+public class ConnectedServerClient extends Thread {
 
-    public Socket server;
+    private Socket server;
     public String username;
 
-    public ObjectInputStream inputStream;
-    public ObjectOutputStream outputStream;
+    private ObjectInputStream inputStream;
+    private ObjectOutputStream outputStream;
 
-    public boolean connected = false;
-    boolean keepConnection = true;
+    private boolean connected = false;
+    private boolean keepConnection = true;
 
     public ConnectedServerClient(String ip, int port, String username, JFrame startupUI){
         try {
@@ -28,7 +27,7 @@ public class ConnectedServerClient {
             if(connected){
                 startupUI.setVisible(false);
                 new ConnectP2PUI(this);
-                new MessageHandler().start();
+                this.start();
                 //this.outputStream.writeObject(new NetMessage(this.username, "Server", "userlist", MessageType.ListUsers));
             }
         } catch (IOException e) {
@@ -48,10 +47,10 @@ public class ConnectedServerClient {
             if(response.reciever.equalsIgnoreCase(this.username) && ((String) response.message).equalsIgnoreCase("accepted") && response.type == MessageType.AcceptedConnection){
                 System.out.println("Connected to the Server!");
                 this.connected = true;
-                return;
+            }else {
+                System.out.println("Received unknown message while trying to connect. Please try again!");
+                disconnect();
             }
-            System.out.println("Received unknown message while trying to connect. Please try again!");
-            disconnect();
         } catch (IOException | ClassCastException | ClassNotFoundException ex) {
             ex.printStackTrace();
             disconnect();
@@ -74,49 +73,55 @@ public class ConnectedServerClient {
         }
     }
 
-    private class MessageHandler extends Thread {
-        @Override
-        public void run() {
-            while (keepConnection){
-                try {
-                    if(inputStream.available() > 0) {
-                        System.out.println("Received new Message");
-                        NetMessage message = (NetMessage) inputStream.readObject();
-                        switch (message.type) {
-                            case RequestP2P:
-                                //HandleRequest
-                                break;
-                            case IsUserOnline:
-                                //HandleResponse
-                                break;
-                            case ListUsers:
-                                System.out.println("User list received");
-                                break;
-                            case AcceptP2P:
-                                //Start P2P Connection
-                                break;
-                            case DenyP2P:
-                                //Show Info to user
-                                break;
-                            case Default:
-                                System.out.println("Received NetMessage from server: " + message.message);
-                                break;
-                            case PING:
-                                outputStream.writeObject(new NetMessage(username, "Server", "pingresponse", MessageType.PING));
-                                break;
-                            default:
-                                System.out.println("Received Message from server: " + message.message);
-                                break;
-                        }
-                    }
-                } catch (IOException | ClassNotFoundException e) {
-                    e.printStackTrace();
-                    keepConnection = false;
-                }
-            }
-            disconnect();
-            stop();
+    public void sendMessage(NetMessage message){
+        try {
+            this.outputStream.writeObject(message);
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
+    @Override
+    public void run() {
+        while (keepConnection) {
+            try {
+                System.out.print(inputStream.available() > 0 ? "yes\n" : "");
+                if (inputStream.available() > 0) {
+                    System.out.println("Received new Message");
+                    NetMessage message = (NetMessage) inputStream.readObject();
+                    switch (message.type) {
+                        case RequestP2P:
+                            //HandleRequest
+                            break;
+                        case IsUserOnline:
+                            //HandleResponse
+                            break;
+                        case ListUsers:
+                            System.out.println("User list received");
+                            break;
+                        case AcceptP2P:
+                            //Start P2P Connection
+                            break;
+                        case DenyP2P:
+                            //Show Info to user
+                            break;
+                        case Default:
+                            System.out.println("Received NetMessage from server: " + message.message);
+                            break;
+                        case PING:
+                            outputStream.writeObject(new NetMessage(username, "Server", "pingresponse", MessageType.PING));
+                            break;
+                        default:
+                            System.out.println("Received Message from server: " + message.message);
+                            break;
+                    }
+                }
+            } catch (IOException | ClassNotFoundException e) {
+                e.printStackTrace();
+                keepConnection = false;
+            }
+        }
+        disconnect();
+        stop();
+    }
 }
